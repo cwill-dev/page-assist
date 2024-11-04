@@ -1,72 +1,26 @@
-import { getModelInfo, isCustomModel } from "@/db/models"
-import { ChatChromeAI } from "./ChatChromeAi"
-import { ChatOllama } from "./ChatOllama"
-import { getOpenAIConfigById } from "@/db/openai"
-import { ChatOpenAI } from "@langchain/openai"
+import { ChatOllama } from "./ChatOllama";
+import { ChatChromeAi } from "./ChatChromeAi";
+import { ChatAnythingLLM } from "./ChatAnythingLLM";
+import { ModelProvider } from "./types";
+import { getAnythingLLMSettings } from "../db/anythingllm";
 
-export const pageAssistModel = async ({
-  model,
-  baseUrl,
-  keepAlive,
-  temperature,
-  topK,
-  topP,
-  numCtx,
-  seed,
-  numGpu
-}: {
-  model: string
-  baseUrl: string
-  keepAlive?: string
-  temperature?: number
-  topK?: number
-  topP?: number
-  numCtx?: number
-  seed?: number
-  numGpu?: number
-}) => {
-
-  if (model === "chrome::gemini-nano::page-assist") {
-    return new ChatChromeAI({
-      temperature,
-      topK
-    })
+export async function getModelProvider(): Promise<ModelProvider> {
+  // Check for AnythingLLM settings first
+  const anythingLLMSettings = await getAnythingLLMSettings();
+  if (anythingLLMSettings?.apiUrl && anythingLLMSettings?.apiKey && anythingLLMSettings?.workspaceSlug) {
+    return new ChatAnythingLLM(
+      anythingLLMSettings.apiUrl,
+      anythingLLMSettings.apiKey,
+      anythingLLMSettings.workspaceSlug
+    );
   }
 
-
-  const isCustom = isCustomModel(model)
-
-
-  if (isCustom) {
-    const modelInfo = await getModelInfo(model)
-    const providerInfo = await getOpenAIConfigById(modelInfo.provider_id)
-
-    return new ChatOpenAI({
-      modelName: modelInfo.model_id,
-      openAIApiKey: providerInfo.apiKey || "temp",
-      temperature,
-      topP,
-      configuration: {
-        apiKey: providerInfo.apiKey || "temp",
-        baseURL: providerInfo.baseUrl || "",
-      }
-    }) as any
+  // Fallback to existing providers
+  try {
+    return new ChatOllama();
+  } catch {
+    return new ChatChromeAi();
   }
-
-
-
-  return new ChatOllama({
-    baseUrl,
-    keepAlive,
-    temperature,
-    topK,
-    topP,
-    numCtx,
-    seed,
-    model,
-    numGpu
-  })
-
-
-
 }
+
+export * from "./types";
